@@ -38,6 +38,7 @@ export const bootstrapSettlement = mutation({
       name: args.name ?? 'First Settlement',
       status: 'bootstrapping',
       tick: 0,
+      updatedAt: now,
     });
 
     const householdIds: string[] = [];
@@ -98,6 +99,7 @@ export const bootstrapSettlement = mutation({
 
     await ctx.db.patch(settlementId, {
       status: 'active',
+      updatedAt: now,
     });
 
     return {

@@ -93,6 +93,7 @@ export const runSettlementTick = mutation({
 
     await ctx.db.patch(settlement._id, {
       tick: settlement.tick + 1,
+      updatedAt: now,
     });
 
     await ctx.db.insert('settlementEvents', {

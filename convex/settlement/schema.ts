@@ -16,6 +16,8 @@ export const settlementTables = {
     tick: v.number(),
     emergencyMode: v.optional(v.boolean()),
     emergencyReason: v.optional(v.string()),
+    lastCycleAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
   }).index('worldId', ['worldId']),
 
   households: defineTable({
@@ -71,4 +73,18 @@ export const settlementTables = {
     householdId: v.optional(v.id('households')),
     createdAt: v.number(),
   }).index('worldId', ['worldId', 'tick']),
+
+  settlementCycles: defineTable({
+    worldId: v.id('worlds'),
+    settlementId: v.id('settlements'),
+    cycle: v.number(),
+    tick: v.number(),
+    status: v.union(v.literal('started'), v.literal('completed'), v.literal('failed')),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    durationMs: v.optional(v.number()),
+    resolvedTasks: v.optional(v.number()),
+    pendingTasksAfter: v.optional(v.number()),
+    summary: v.optional(v.string()),
+  }).index('worldId', ['worldId', 'cycle']),
 };

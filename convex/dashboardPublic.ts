@@ -1,4 +1,14 @@
 import { query } from './_generated/server';
+import { getSettlementAudit } from './settlement/audit';
+
+function severityScore(agent: {
+  hunger: number;
+  energy: number;
+  safety: number;
+  morale?: number;
+}) {
+  return agent.hunger + (100 - agent.energy) + (100 - agent.safety) + (100 - (agent.morale ?? 60));
+}
 
 export const getDashboard = query({
   args: {},
@@ -15,23 +25,12 @@ export const getDashboard = query({
       .first();
     if (!settlement) return null;
 
-    const households = await ctx.db
-      .query('households')
-      .withIndex('worldId', (q) => q.eq('worldId', worldStatus.worldId))
-      .collect();
-    const agents = await ctx.db
-      .query('agentNeeds')
-      .withIndex('worldId', (q) => q.eq('worldId', worldStatus.worldId))
-      .collect();
-    const tasks = await ctx.db
-      .query('taskQueue')
-      .withIndex('worldId', (q) => q.eq('worldId', worldStatus.worldId).eq('status', 'pending'))
-      .collect();
-    const events = await ctx.db
-      .query('settlementEvents')
-      .withIndex('worldId', (q) => q.eq('worldId', worldStatus.worldId))
-      .order('desc')
-      .take(10);
+    const [households, agents, tasks, audit] = await Promise.all([
+      ctx.db.query('households').withIndex('worldId', (q) => q.eq('worldId', worldStatus.worldId)).collect(),
+      ctx.db.query('agentNeeds').withIndex('worldId', (q) => q.eq('worldId', worldStatus.worldId)).collect(),
+      ctx.db.query('taskQueue').withIndex('worldId', (q) => q.eq('worldId', worldStatus.worldId)).collect(),
+      getSettlementAudit(ctx, worldStatus.worldId, settlement),
+    ]);
 
     const population = agents.length;
     const totalFood = households.reduce((sum, h) => sum + h.food, 0);
@@ -43,10 +42,7 @@ export const getDashboard = query({
     const avgMorale = population ? agents.reduce((sum, a) => sum + (a.morale ?? 60), 0) / population : 0;
 
     const criticalAgents = [...agents]
-      .sort((a, b) => {
-        const severity = (x: typeof a) => x.hunger + (100 - x.energy) + (100 - x.safety) + (100 - (x.morale ?? 60));
-        return severity(b) - severity(a);
-      })
+      .sort((a, b) => severityScore(b) - severityScore(a))
       .slice(0, 5);
 
     const topStrainedHouseholds = [...households]
@@ -61,17 +57,36 @@ export const getDashboard = query({
       (acc, task) => {
         acc.total += 1;
         acc.byType[task.type] = (acc.byType[task.type] ?? 0) + 1;
+        acc.byStatus[task.status] = (acc.byStatus[task.status] ?? 0) + 1;
         return acc;
       },
-      { total: 0, byType: {} as Record<string, number> },
+      {
+        total: 0,
+        byType: {} as Record<string, number>,
+        byStatus: {
+          pending: 0,
+          assigned: 0,
+          done: 0,
+          cancelled: 0,
+        } as Record<string, number>,
+      },
     );
 
     return {
-      settlement,
+      meta: audit?.meta ?? null,
+      settlement: {
+        id: settlement._id,
+        name: settlement.name,
+        status: settlement.status,
+        tick: settlement.tick,
+        emergencyMode: !!settlement.emergencyMode,
+        emergencyReason: settlement.emergencyReason ?? null,
+      },
       alerts: {
         emergencyMode: !!settlement.emergencyMode,
         criticalAgents: criticalAgents.length,
-        pendingTasks: taskSummary.total,
+        pendingTasks: taskSummary.byStatus.pending ?? 0,
+        isStale: audit?.meta.isStale ?? true,
       },
       summary: {
         population,
@@ -83,11 +98,19 @@ export const getDashboard = query({
         avgSafety,
         avgMorale,
       },
-      taskSummary,
+      counts: {
+        households: households.length,
+        agents: agents.length,
+        events: audit?.recentEvents.length ?? 0,
+        tasks: taskSummary,
+      },
+      audit: {
+        recentCycles: audit?.meta.recentCycles ?? [],
+        recentEvents: audit?.recentEvents ?? [],
+      },
       criticalAgents,
       topStrainedHouseholds,
       topProductiveHouseholds,
-      events,
     };
   },
 });

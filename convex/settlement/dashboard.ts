@@ -1,5 +1,6 @@
 import { query } from '../_generated/server';
 import { v } from 'convex/values';
+import { getSettlementAudit } from './audit';
 
 function severityScore(agent: {
   hunger: number;
@@ -21,23 +22,12 @@ export const getDashboard = query({
       .first();
     if (!settlement) return null;
 
-    const households = await ctx.db
-      .query('households')
-      .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
-      .collect();
-    const agentNeeds = await ctx.db
-      .query('agentNeeds')
-      .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
-      .collect();
-    const events = await ctx.db
-      .query('settlementEvents')
-      .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
-      .order('desc')
-      .take(12);
-    const tasks = await ctx.db
-      .query('taskQueue')
-      .withIndex('worldId', (q) => q.eq('worldId', args.worldId).eq('status', 'pending'))
-      .collect();
+    const [households, agentNeeds, tasks, audit] = await Promise.all([
+      ctx.db.query('households').withIndex('worldId', (q) => q.eq('worldId', args.worldId)).collect(),
+      ctx.db.query('agentNeeds').withIndex('worldId', (q) => q.eq('worldId', args.worldId)).collect(),
+      ctx.db.query('taskQueue').withIndex('worldId', (q) => q.eq('worldId', args.worldId)).collect(),
+      getSettlementAudit(ctx, args.worldId, settlement),
+    ]);
 
     const population = agentNeeds.length;
     const totalFood = households.reduce((sum, h) => sum + h.food, 0);
@@ -65,17 +55,28 @@ export const getDashboard = query({
       (acc, task) => {
         acc.total += 1;
         acc.byType[task.type] = (acc.byType[task.type] ?? 0) + 1;
+        acc.byStatus[task.status] = (acc.byStatus[task.status] ?? 0) + 1;
         return acc;
       },
-      { total: 0, byType: {} as Record<string, number> },
+      {
+        total: 0,
+        byType: {} as Record<string, number>,
+        byStatus: {
+          pending: 0,
+          assigned: 0,
+          done: 0,
+          cancelled: 0,
+        } as Record<string, number>,
+      },
     );
 
     return {
+      meta: audit?.meta ?? null,
       settlement,
       alerts: {
         emergencyMode: !!settlement.emergencyMode,
         criticalAgents: criticalAgents.length,
-        pendingTasks: taskSummary.total,
+        pendingTasks: taskSummary.byStatus.pending ?? 0,
       },
       summary: {
         population,
@@ -87,11 +88,18 @@ export const getDashboard = query({
         avgSafety,
         avgMorale,
       },
-      taskSummary,
+      counts: {
+        households: households.length,
+        agents: agentNeeds.length,
+        tasks: taskSummary,
+      },
+      audit: {
+        recentCycles: audit?.meta.recentCycles ?? [],
+        recentEvents: audit?.recentEvents ?? [],
+      },
       criticalAgents,
       topStrainedHouseholds,
       topProductiveHouseholds,
-      events,
     };
   },
 });

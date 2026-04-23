@@ -44,6 +44,7 @@ export const ensureDashboardReady = mutation({
         tick: 2,
         emergencyMode: false,
         emergencyReason: 'stable_bootstrap',
+        updatedAt: now,
       });
 
       const roles = ['forager', 'builder', 'guard', 'laborer'];
