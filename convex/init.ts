@@ -1,113 +1,92 @@
+import { internalMutation } from './_generated/server';
 import { v } from 'convex/values';
-import { internal } from './_generated/api';
-import { DatabaseReader, MutationCtx, mutation } from './_generated/server';
-import { Descriptions } from '../data/characters';
-import * as map from '../data/gentle';
-import { insertInput } from './aiTown/insertInput';
-import { Id } from './_generated/dataModel';
-import { createEngine } from './aiTown/main';
-import { ENGINE_ACTION_DURATION } from './constants';
-import { detectMismatchedLLMProvider } from './util/llm';
+import { characters } from '../data/characters';
 
-const init = mutation({
-  args: {
-    numAgents: v.optional(v.number()),
-  },
+export default internalMutation({
+  args: { numAgents: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    detectMismatchedLLMProvider();
-    const { worldStatus, engine } = await getOrCreateDefaultWorld(ctx);
-    if (worldStatus.status !== 'running') {
-      console.warn(
-        `Engine ${engine._id} is not active! Run "npx convex run testing:resume" to restart it.`,
-      );
-      return;
+    const numAgents = args.numAgents ?? 8;
+    const now = Date.now();
+
+    // Create players array with required fields
+    const players = [];
+    for (let i = 0; i < numAgents; i++) {
+      players.push({
+        id: `player_${i}`,
+        human: undefined,
+        lastInput: now,
+        position: { x: Math.floor(Math.random() * 50), y: Math.floor(Math.random() * 50) },
+        facing: { dx: 1, dy: 0 },
+        speed: 0,
+      });
     }
-    const shouldCreate = await shouldCreateAgents(
-      ctx.db,
-      worldStatus.worldId,
-      worldStatus.engineId,
-    );
-    if (shouldCreate) {
-      const toCreate = args.numAgents !== undefined ? args.numAgents : Descriptions.length;
-      for (let i = 0; i < toCreate; i++) {
-        await insertInput(ctx, worldStatus.worldId, 'createAgent', {
-          descriptionIndex: i % Descriptions.length,
-        });
-      }
+
+    // Create a default world with required structure
+    const worldId = await ctx.db.insert('worlds', {
+      nextId: numAgents + 1,
+      conversations: [],
+      players,
+      agents: [],
+    });
+
+    // Create engine
+    const engineId = await ctx.db.insert('engines', {
+      currentTime: now,
+      lastStepTs: now,
+      processedInputNumber: 0,
+      running: true,
+      generationNumber: 0,
+    });
+
+    // Create worldStatus
+    await ctx.db.insert('worldStatus', {
+      worldId,
+      isDefault: true,
+      status: 'running',
+      lastViewed: now,
+      engineId,
+    });
+
+    // Create player descriptions using Descriptions array
+    const descs = [
+      {
+        name: 'Lucky',
+        character: 'f1',
+        identity: 'Lucky is always happy and curious...',
+      },
+      {
+        name: 'Bob',
+        character: 'f4',
+        identity: 'Bob is always grumpy...',
+      },
+      {
+        name: 'Stella',
+        character: 'f6',
+        identity: 'Stella can never be trusted...',
+      },
+      {
+        name: 'Alice',
+        character: 'f3',
+        identity: 'Alice is a famous scientist...',
+      },
+      {
+        name: 'Pete',
+        character: 'f7',
+        identity: 'Pete is deeply religious...',
+      },
+    ];
+    
+    for (let i = 0; i < numAgents; i++) {
+      const desc = descs[i % descs.length];
+      await ctx.db.insert('playerDescriptions', {
+        worldId,
+        playerId: `player_${i}`,
+        character: desc.character,
+        name: desc.name,
+        description: desc.identity,
+      });
     }
+
+    return { worldId };
   },
 });
-export default init;
-
-async function getOrCreateDefaultWorld(ctx: MutationCtx) {
-  const now = Date.now();
-
-  let worldStatus = await ctx.db
-    .query('worldStatus')
-    .filter((q) => q.eq(q.field('isDefault'), true))
-    .unique();
-  if (worldStatus) {
-    const engine = (await ctx.db.get(worldStatus.engineId))!;
-    return { worldStatus, engine };
-  }
-
-  const engineId = await createEngine(ctx);
-  const engine = (await ctx.db.get(engineId))!;
-  const worldId = await ctx.db.insert('worlds', {
-    nextId: 0,
-    agents: [],
-    conversations: [],
-    players: [],
-  });
-  const worldStatusId = await ctx.db.insert('worldStatus', {
-    engineId: engineId,
-    isDefault: true,
-    lastViewed: now,
-    status: 'running',
-    worldId: worldId,
-  });
-  worldStatus = (await ctx.db.get(worldStatusId))!;
-  await ctx.db.insert('maps', {
-    worldId,
-    width: map.mapwidth,
-    height: map.mapheight,
-    tileSetUrl: map.tilesetpath,
-    tileSetDimX: map.tilesetpxw,
-    tileSetDimY: map.tilesetpxh,
-    tileDim: map.tiledim,
-    bgTiles: map.bgtiles,
-    objectTiles: map.objmap,
-    animatedSprites: map.animatedsprites,
-  });
-  await ctx.scheduler.runAfter(0, internal.aiTown.main.runStep, {
-    worldId,
-    generationNumber: engine.generationNumber,
-    maxDuration: ENGINE_ACTION_DURATION,
-  });
-  return { worldStatus, engine };
-}
-
-async function shouldCreateAgents(
-  db: DatabaseReader,
-  worldId: Id<'worlds'>,
-  engineId: Id<'engines'>,
-) {
-  const world = await db.get(worldId);
-  if (!world) {
-    throw new Error(`Invalid world ID: ${worldId}`);
-  }
-  if (world.agents.length > 0) {
-    return false;
-  }
-  const unactionedJoinInputs = await db
-    .query('inputs')
-    .withIndex('byInputNumber', (q) => q.eq('engineId', engineId))
-    .order('asc')
-    .filter((q) => q.eq(q.field('name'), 'createAgent'))
-    .filter((q) => q.eq(q.field('returnValue'), undefined))
-    .first();
-  if (unactionedJoinInputs) {
-    return false;
-  }
-  return true;
-}
