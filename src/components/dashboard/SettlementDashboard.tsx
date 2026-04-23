@@ -287,8 +287,8 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
       <div className="grid gap-4 lg:grid-cols-3">
         <Panel title="Critical agents" eyebrow="intervene first">
           <div className="space-y-3">
-            {data.criticalAgents.length ? (
-              data.criticalAgents.map((agent) => (
+            {(data.criticalAgents ?? []).length ? (
+              (data.criticalAgents ?? []).map((agent) => (
                 <EntityCard
                   key={agent._id}
                   title={humanizeAgent(agent.playerId)}
@@ -314,7 +314,7 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
               <EntityCard
                 key={household._id}
                 title={household.name}
-                subtitle={`${household.memberIds.length} members`}
+                subtitle={`${(household.memberIds ?? []).length} members`}
                 emphasis="warning"
                 pills={[
                   `strain ${household.strainScore ?? 0}`,
@@ -333,7 +333,7 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
               <EntityCard
                 key={household._id}
                 title={household.name}
-                subtitle={`${household.memberIds.length} members`}
+                subtitle={`${(household.memberIds ?? []).length} members`}
                 emphasis="positive"
                 pills={[
                   `productivity ${household.productivityScore ?? 0}`,
@@ -353,7 +353,7 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
             <div key={event._id} className="grid grid-cols-[auto_1fr] gap-3 rounded-3xl border border-white/8 bg-white/[0.03] p-3 sm:p-4">
               <div className="flex flex-col items-center">
                 <div className="h-3 w-3 rounded-full bg-cyan-300 shadow-[0_0_0_4px_rgba(103,232,249,0.12)]" />
-                {index !== data.events.length - 1 ? <div className="mt-2 h-full w-px bg-white/10" /> : null}
+                {index !== events.length - 1 ? <div className="mt-2 h-full w-px bg-white/10" /> : null}
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.2em] text-white/45">
