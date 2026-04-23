@@ -34,9 +34,25 @@ type DashboardData = {
     avgSafety: number;
     avgMorale: number;
   };
-  taskSummary: {
+  taskSummary?: {
     total: number;
     byType: Record<string, number>;
+  };
+  counts?: {
+    tasks?: {
+      total: number;
+      byType: Record<string, number>;
+      byStatus?: Record<string, number>;
+    };
+  };
+  audit?: {
+    recentEvents?: Array<{
+      _id: string;
+      type: string;
+      summary: string;
+      tick: number;
+      createdAt?: number;
+    }>;
   };
   criticalAgents: Array<{
     _id: string;
@@ -96,7 +112,9 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
   const hungerRisk = riskBand(summary.avgHunger, [45, 72]);
   const energyRisk = inverseRiskBand(summary.avgEnergy, [65, 38]);
   const safetyRisk = inverseRiskBand(summary.avgSafety, [72, 42]);
-  const dominantTask = Object.entries(data.taskSummary.byType).sort((a, b) => b[1] - a[1])[0];
+  const taskSummary = data.taskSummary ?? data.counts?.tasks ?? { total: 0, byType: {}, byStatus: {} };
+  const events = data.events ?? data.audit?.recentEvents ?? [];
+  const dominantTask = Object.entries(taskSummary.byType ?? {}).sort((a, b) => b[1] - a[1])[0];
 
   const operationalAlerts = [
     alerts.emergencyMode
@@ -201,7 +219,7 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
               items={[
                 `${alerts.pendingTasks} pending tasks`,
                 dominantTask ? `${dominantTask[1]} ${humanizeLabel(dominantTask[0])}` : 'No dominant task type',
-                `${Object.keys(data.taskSummary.byType).length} active lanes`,
+                `${Object.keys(taskSummary.byType ?? {}).length} active lanes`,
               ]}
             />
             <FlowCard
@@ -246,10 +264,10 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
 
         <Panel title="Task composition" eyebrow="queue distribution">
           <div className="space-y-3">
-            {Object.entries(data.taskSummary.byType)
+            {Object.entries(taskSummary.byType ?? {})
               .sort((a, b) => b[1] - a[1])
               .map(([type, count]) => {
-                const ratio = data.taskSummary.total ? (count / data.taskSummary.total) * 100 : 0;
+                const ratio = taskSummary.total ? (count / taskSummary.total) * 100 : 0;
                 return (
                   <div key={type} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
                     <div className="flex items-center justify-between gap-3 text-sm text-white">
@@ -331,7 +349,7 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
 
       <Panel title="Operational timeline" eyebrow="recent activity">
         <div className="space-y-3">
-          {data.events.map((event, index) => (
+          {events.map((event, index) => (
             <div key={event._id} className="grid grid-cols-[auto_1fr] gap-3 rounded-3xl border border-white/8 bg-white/[0.03] p-3 sm:p-4">
               <div className="flex flex-col items-center">
                 <div className="h-3 w-3 rounded-full bg-cyan-300 shadow-[0_0_0_4px_rgba(103,232,249,0.12)]" />
@@ -347,6 +365,7 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
             </div>
           ))}
         </div>
+        {!events.length ? <EmptyState text="No recent events available yet." /> : null}
       </Panel>
     </div>
   );
