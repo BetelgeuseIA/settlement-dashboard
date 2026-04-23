@@ -1,37 +1,10 @@
-import { useQuery } from 'convex/react';
-import { api } from '../../../convex/_generated/api';
-import type { Doc, Id } from '../../../convex/_generated/dataModel';
-
-export default function SettlementDashboard({ worldId }: { worldId: Id<'worlds'> }) {
-  const data = useQuery((api as any).settlement.dashboard.getDashboard, { worldId }) as
-    | {
-        settlement: Doc<'settlements'>;
-        alerts: { emergencyMode: boolean; criticalAgents: number; pendingTasks: number };
-        summary: {
-          population: number;
-          totalFood: number;
-          totalWood: number;
-          totalStone: number;
-          avgHunger: number;
-          avgEnergy: number;
-          avgSafety: number;
-          avgMorale: number;
-        };
-        taskSummary: { total: number; byType: Record<string, number> };
-        criticalAgents: Doc<'agentNeeds'>[];
-        topStrainedHouseholds: Doc<'households'>[];
-        topProductiveHouseholds: Doc<'households'>[];
-        events: Doc<'settlementEvents'>[];
-      }
-    | null
-    | undefined;
-
+export default function SettlementDashboard({ data }: { data: any }) {
   if (data === undefined) {
-    return <Panel>Preparando dashboard...</Panel>;
+    return <SkeletonDashboard />;
   }
 
   if (!data) {
-    return <Panel>Inicializando settlement...</Panel>;
+    return <SkeletonDashboard message="Sembrando el settlement inicial..." />;
   }
 
   return (
@@ -60,30 +33,26 @@ export default function SettlementDashboard({ worldId }: { worldId: Id<'worlds'>
         <Panel title="Task summary">
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
             {Object.entries(data.taskSummary.byType).map(([type, count]) => (
-              <MiniPill key={type} label={type.replaceAll('_', ' ')} value={count} />
+              <MiniPill key={type} label={String(type).replaceAll('_', ' ')} value={count as number} />
             ))}
           </div>
         </Panel>
 
         <Panel title="Critical agents">
           <div className="space-y-2">
-            {data.criticalAgents.length === 0 ? (
-              <EmptyLine text="No hay agentes críticos ahora." />
-            ) : (
-              data.criticalAgents.map((agent) => (
-                <RowCard
-                  key={agent._id}
-                  title={humanizeAgent(agent.playerId)}
-                  subtitle={(agent.role ?? 'unknown').toUpperCase()}
-                  stats={[
-                    `hunger ${agent.hunger}`,
-                    `energy ${agent.energy}`,
-                    `safety ${agent.safety}`,
-                    `morale ${agent.morale ?? 60}`,
-                  ]}
-                />
-              ))
-            )}
+            {data.criticalAgents.map((agent: any) => (
+              <RowCard
+                key={agent._id}
+                title={humanizeAgent(agent.playerId)}
+                subtitle={(agent.role ?? 'unknown').toUpperCase()}
+                stats={[
+                  `hunger ${agent.hunger}`,
+                  `energy ${agent.energy}`,
+                  `safety ${agent.safety}`,
+                  `morale ${agent.morale ?? 60}`,
+                ]}
+              />
+            ))}
           </div>
         </Panel>
       </div>
@@ -91,7 +60,7 @@ export default function SettlementDashboard({ worldId }: { worldId: Id<'worlds'>
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Households under strain">
           <div className="space-y-2">
-            {data.topStrainedHouseholds.map((household) => (
+            {data.topStrainedHouseholds.map((household: any) => (
               <RowCard
                 key={household._id}
                 title={household.name}
@@ -109,7 +78,7 @@ export default function SettlementDashboard({ worldId }: { worldId: Id<'worlds'>
 
         <Panel title="Top productive households">
           <div className="space-y-2">
-            {data.topProductiveHouseholds.map((household) => (
+            {data.topProductiveHouseholds.map((household: any) => (
               <RowCard
                 key={household._id}
                 title={household.name}
@@ -128,7 +97,7 @@ export default function SettlementDashboard({ worldId }: { worldId: Id<'worlds'>
 
       <Panel title="Recent events">
         <div className="space-y-2">
-          {data.events.map((event) => (
+          {data.events.map((event: any) => (
             <div key={event._id} className="rounded-2xl border border-white/8 bg-white/5 p-3 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-medium text-white">{event.type}</span>
@@ -146,6 +115,20 @@ export default function SettlementDashboard({ worldId }: { worldId: Id<'worlds'>
 function humanizeAgent(playerId: string) {
   const suffix = playerId.split('|').pop() ?? playerId;
   return `Agent ${suffix.slice(-6)}`;
+}
+
+function SkeletonDashboard({ message = 'Cargando panel operativo...' }: { message?: string }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {[1, 2, 3].map((n) => <div key={n} className="h-24 animate-pulse rounded-2xl border border-white/10 bg-white/5" />)}
+      </div>
+      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-sm text-white/70">{message}</div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[1, 2, 3, 4].map((n) => <div key={n} className="h-24 animate-pulse rounded-2xl border border-white/10 bg-white/5" />)}
+      </div>
+    </div>
+  );
 }
 
 function Panel({ children, title }: { children: React.ReactNode; title?: string }) {
@@ -193,12 +176,8 @@ function MiniPill({ label, value }: { label: string; value: string | number }) {
 function RowCard({ title, subtitle, stats }: { title: string; subtitle: string; stats: string[] }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="font-medium text-white">{title}</div>
-          <div className="text-xs uppercase tracking-[0.16em] text-white/40">{subtitle}</div>
-        </div>
-      </div>
+      <div className="font-medium text-white">{title}</div>
+      <div className="text-xs uppercase tracking-[0.16em] text-white/40">{subtitle}</div>
       <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/70">
         {stats.map((stat) => (
           <span key={stat} className="rounded-full border border-white/10 px-2 py-1">{stat}</span>
@@ -206,8 +185,4 @@ function RowCard({ title, subtitle, stats }: { title: string; subtitle: string; 
       </div>
     </div>
   );
-}
-
-function EmptyLine({ text }: { text: string }) {
-  return <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/60">{text}</div>;
 }
