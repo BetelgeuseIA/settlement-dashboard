@@ -6,6 +6,7 @@ export default function SettlementDashboard({ worldId }: { worldId: Id<'worlds'>
   const data = useQuery((api as any).settlement.dashboard.getDashboard, { worldId }) as
     | {
         settlement: Doc<'settlements'>;
+        alerts: { emergencyMode: boolean; criticalAgents: number; pendingTasks: number };
         summary: {
           population: number;
           totalFood: number;
@@ -15,118 +16,198 @@ export default function SettlementDashboard({ worldId }: { worldId: Id<'worlds'>
           avgEnergy: number;
           avgSafety: number;
           avgMorale: number;
-          pendingTasks: number;
-          criticalAgents: number;
         };
-        households: Doc<'households'>[];
-        agents: Doc<'agentNeeds'>[];
+        taskSummary: { total: number; byType: Record<string, number> };
+        criticalAgents: Doc<'agentNeeds'>[];
+        topStrainedHouseholds: Doc<'households'>[];
+        topProductiveHouseholds: Doc<'households'>[];
         events: Doc<'settlementEvents'>[];
       }
     | null
     | undefined;
 
   if (data === undefined) {
-    return <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">Loading settlement dashboard...</div>;
+    return <Panel>Preparando dashboard...</Panel>;
   }
 
   if (!data) {
-    return <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">No settlement bootstrapped yet for this world.</div>;
+    return <Panel>Inicializando settlement...</Panel>;
   }
 
-  const { settlement, summary, households, agents, events } = data;
-
   return (
-    <div className="space-y-4 text-white">
-      <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard label="Population" value={summary.population} />
-        <MetricCard label="Tick" value={settlement.tick} />
-        <MetricCard label="Pending tasks" value={summary.pendingTasks} />
-        <MetricCard label="Critical agents" value={summary.criticalAgents} />
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <AlertCard label="Emergency" value={data.alerts.emergencyMode ? 'ON' : 'OFF'} tone={data.alerts.emergencyMode ? 'red' : 'green'} />
+        <AlertCard label="Critical agents" value={data.alerts.criticalAgents} tone={data.alerts.criticalAgents > 0 ? 'amber' : 'green'} />
+        <AlertCard label="Pending tasks" value={data.alerts.pendingTasks} tone="blue" />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard label="Food" value={summary.totalFood} />
-        <MetricCard label="Wood" value={summary.totalWood} />
-        <MetricCard label="Stone" value={summary.totalStone} />
-        <MetricCard label="Emergency" value={settlement.emergencyMode ? 'ON' : 'OFF'} tone={settlement.emergencyMode ? 'red' : 'green'} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <MetricCard label="Population" value={data.summary.population} />
+        <MetricCard label="Food" value={data.summary.totalFood} />
+        <MetricCard label="Wood" value={data.summary.totalWood} />
+        <MetricCard label="Stone" value={data.summary.totalStone} />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard label="Avg hunger" value={summary.avgHunger.toFixed(1)} />
-        <MetricCard label="Avg energy" value={summary.avgEnergy.toFixed(1)} />
-        <MetricCard label="Avg safety" value={summary.avgSafety.toFixed(1)} />
-        <MetricCard label="Avg morale" value={summary.avgMorale.toFixed(1)} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <MetricCard label="Avg hunger" value={data.summary.avgHunger.toFixed(1)} />
+        <MetricCard label="Avg energy" value={data.summary.avgEnergy.toFixed(1)} />
+        <MetricCard label="Avg safety" value={data.summary.avgSafety.toFixed(1)} />
+        <MetricCard label="Avg morale" value={data.summary.avgMorale.toFixed(1)} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
-        <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <h2 className="mb-3 text-lg font-semibold">Households</h2>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Task summary">
+          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+            {Object.entries(data.taskSummary.byType).map(([type, count]) => (
+              <MiniPill key={type} label={type.replaceAll('_', ' ')} value={count} />
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Critical agents">
           <div className="space-y-2">
-            {households.map((household: Doc<'households'>) => (
-              <div key={household._id} className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <strong>{household.name}</strong>
-                  <span className="text-white/60">members: {household.memberIds.length}</span>
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-white/80">
-                  <span>food {household.food}</span>
-                  <span>wood {household.wood}</span>
-                  <span>stone {household.stone}</span>
-                </div>
-                <div className="mt-2 flex gap-4 text-xs text-white/60">
-                  <span>productivity {(household.productivityScore ?? 0).toFixed?.(0) ?? household.productivityScore ?? 0}</span>
-                  <span>strain {(household.strainScore ?? 0).toFixed?.(0) ?? household.strainScore ?? 0}</span>
-                </div>
-              </div>
-            ))}
+            {data.criticalAgents.length === 0 ? (
+              <EmptyLine text="No hay agentes críticos ahora." />
+            ) : (
+              data.criticalAgents.map((agent) => (
+                <RowCard
+                  key={agent._id}
+                  title={humanizeAgent(agent.playerId)}
+                  subtitle={(agent.role ?? 'unknown').toUpperCase()}
+                  stats={[
+                    `hunger ${agent.hunger}`,
+                    `energy ${agent.energy}`,
+                    `safety ${agent.safety}`,
+                    `morale ${agent.morale ?? 60}`,
+                  ]}
+                />
+              ))
+            )}
           </div>
-        </section>
-
-        <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <h2 className="mb-3 text-lg font-semibold">Agents</h2>
-          <div className="max-h-[28rem] space-y-2 overflow-auto pr-1">
-            {agents.map((agent: Doc<'agentNeeds'>) => (
-              <div key={agent._id} className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <strong>{agent.playerId}</strong>
-                  <span className="uppercase text-white/60">{agent.role ?? 'unknown'}</span>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-white/80">
-                  <span>hunger {agent.hunger}</span>
-                  <span>energy {agent.energy}</span>
-                  <span>safety {agent.safety}</span>
-                  <span>morale {agent.morale ?? 60}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        </Panel>
       </div>
 
-      <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
-        <h2 className="mb-3 text-lg font-semibold">Recent events</h2>
-        <div className="space-y-2 text-sm text-white/80">
-          {events.map((event: Doc<'settlementEvents'>) => (
-            <div key={event._id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Households under strain">
+          <div className="space-y-2">
+            {data.topStrainedHouseholds.map((household) => (
+              <RowCard
+                key={household._id}
+                title={household.name}
+                subtitle={`${household.memberIds.length} miembros`}
+                stats={[
+                  `strain ${household.strainScore ?? 0}`,
+                  `food ${household.food}`,
+                  `wood ${household.wood}`,
+                  `stone ${household.stone}`,
+                ]}
+              />
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Top productive households">
+          <div className="space-y-2">
+            {data.topProductiveHouseholds.map((household) => (
+              <RowCard
+                key={household._id}
+                title={household.name}
+                subtitle={`${household.memberIds.length} miembros`}
+                stats={[
+                  `productivity ${household.productivityScore ?? 0}`,
+                  `food ${household.food}`,
+                  `wood ${household.wood}`,
+                  `stone ${household.stone}`,
+                ]}
+              />
+            ))}
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="Recent events">
+        <div className="space-y-2">
+          {data.events.map((event) => (
+            <div key={event._id} className="rounded-2xl border border-white/8 bg-white/5 p-3 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <span className="font-medium">{event.type}</span>
-                <span className="text-white/50">tick {event.tick}</span>
+                <span className="font-medium text-white">{event.type}</span>
+                <span className="text-xs text-white/45">tick {event.tick}</span>
               </div>
-              <p className="mt-1 text-white/70">{event.summary}</p>
+              <div className="mt-1 text-white/70">{event.summary}</div>
             </div>
           ))}
         </div>
-      </section>
+      </Panel>
     </div>
   );
 }
 
-function MetricCard({ label, value, tone = 'default' }: { label: string; value: string | number; tone?: 'default' | 'red' | 'green' }) {
-  const toneClass = tone === 'red' ? 'text-red-300' : tone === 'green' ? 'text-emerald-300' : 'text-white';
+function humanizeAgent(playerId: string) {
+  const suffix = playerId.split('|').pop() ?? playerId;
+  return `Agent ${suffix.slice(-6)}`;
+}
+
+function Panel({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <div className="text-xs uppercase tracking-[0.2em] text-white/50">{label}</div>
-      <div className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value}</div>
+    <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-xl shadow-black/20 sm:p-5">
+      {title ? <h2 className="mb-3 text-base font-semibold text-white sm:text-lg">{title}</h2> : null}
+      {children}
+    </section>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[rgba(255,255,255,0.04)] p-4">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-white/45">{label}</div>
+      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
     </div>
   );
+}
+
+function AlertCard({ label, value, tone }: { label: string; value: string | number; tone: 'red' | 'green' | 'amber' | 'blue' }) {
+  const toneClass = {
+    red: 'text-red-300 border-red-400/20 bg-red-400/10',
+    green: 'text-emerald-300 border-emerald-400/20 bg-emerald-400/10',
+    amber: 'text-amber-300 border-amber-400/20 bg-amber-400/10',
+    blue: 'text-sky-300 border-sky-400/20 bg-sky-400/10',
+  }[tone];
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClass}`}>
+      <div className="text-[11px] uppercase tracking-[0.18em] opacity-75">{label}</div>
+      <div className="mt-2 text-2xl font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function MiniPill({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-white/45">{label}</div>
+      <div className="mt-1 text-base font-semibold text-white">{value}</div>
+    </div>
+  );
+}
+
+function RowCard({ title, subtitle, stats }: { title: string; subtitle: string; stats: string[] }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="font-medium text-white">{title}</div>
+          <div className="text-xs uppercase tracking-[0.16em] text-white/40">{subtitle}</div>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/70">
+        {stats.map((stat) => (
+          <span key={stat} className="rounded-full border border-white/10 px-2 py-1">{stat}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EmptyLine({ text }: { text: string }) {
+  return <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/60">{text}</div>;
 }
