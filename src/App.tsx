@@ -77,27 +77,41 @@ export default function Home() {
         </Unauthenticated>
       </div> */}
 
-      <div className="w-full lg:h-screen min-h-screen relative isolate overflow-hidden lg:p-8 shadow-2xl flex flex-col justify-start">
-        <h1 className="mx-auto text-4xl p-3 sm:text-8xl lg:text-9xl font-bold font-display leading-none tracking-wide game-title w-full text-left sm:text-center sm:w-auto">
-          AI Town
-        </h1>
-
-        <div className="max-w-xs md:max-w-xl lg:max-w-none mx-auto my-4 text-center text-base sm:text-xl md:text-2xl text-white leading-tight shadow-solid">
-          A virtual town where AI characters live, chat and socialize.
-          {/* <Unauthenticated>
-            <div className="my-1.5 sm:my-0" />
-            Log in to join the town
-            <br className="block sm:hidden" /> and the conversation!
-          </Unauthenticated> */}
+      <div className="w-full min-h-screen relative isolate overflow-hidden lg:p-8 shadow-2xl flex flex-col justify-start">
+        <div className="mx-auto w-full max-w-[1400px] px-4 pt-4 sm:px-6 lg:px-0">
+          <div className="rounded-3xl border border-white/10 bg-black/25 p-4 sm:p-6 backdrop-blur-md">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <div className="text-xs uppercase tracking-[0.3em] text-amber-300/80">Settlement Sim</div>
+                <h1 className="mt-2 text-3xl sm:text-5xl lg:text-7xl font-bold font-display leading-none tracking-wide game-title">
+                  Ciudad de IA
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm sm:text-lg text-white/80 leading-relaxed">
+                  Un dashboard vivo del settlement: recursos, hogares, agentes, crisis y tensión social,
+                  optimizado primero para móvil.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-2 lg:justify-end">
+                <FreezeButton />
+                <MusicButton />
+                <InteractButton />
+                <Button imgUrl={helpImg} onClick={() => setHelpModalOpen(true)}>
+                  Ayuda
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <Game />
-
-        <div className="mx-auto mt-6 w-full max-w-[1400px] px-4 pb-4 sm:px-0">
+        <div className="mx-auto mt-4 w-full max-w-[1400px] px-4 sm:px-6 lg:px-0">
           {worldId ? <SettlementDashboard worldId={worldId} /> : null}
         </div>
 
-        <footer className="justify-end bottom-0 left-0 w-full flex items-center mt-4 gap-3 p-6 flex-wrap pointer-events-none">
+        <div className="mx-auto mt-4 w-full max-w-[1400px] px-4 pb-4 sm:px-6 lg:px-0">
+          <Game />
+        </div>
+
+        <footer className="justify-end bottom-0 left-0 w-full flex items-center mt-2 gap-3 p-6 flex-wrap pointer-events-none">
           <div className="flex gap-4 flex-grow pointer-events-none">
             <FreezeButton />
             <MusicButton />
