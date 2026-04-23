@@ -37,7 +37,11 @@ export default function Game() {
   const scrollViewRef = useRef<HTMLDivElement>(null);
 
   if (!worldId || !engineId || !game) {
-    return null;
+    return (
+      <div className="rounded-3xl border border-white/10 bg-black/20 p-5 text-sm text-white/70">
+        Cargando mapa del settlement...
+      </div>
+    );
   }
   return (
     <>

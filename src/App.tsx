@@ -1,19 +1,8 @@
 import Game from './components/Game.tsx';
 
 import { ToastContainer } from 'react-toastify';
-import a16zImg from '../assets/a16z.png';
-import convexImg from '../assets/convex.svg';
-import starImg from '../assets/star.svg';
-import helpImg from '../assets/help.svg';
-// import { UserButton } from '@clerk/clerk-react';
-// import { Authenticated, Unauthenticated } from 'convex/react';
-// import LoginButton from './components/buttons/LoginButton.tsx';
 import { useState } from 'react';
 import ReactModal from 'react-modal';
-import MusicButton from './components/buttons/MusicButton.tsx';
-import Button from './components/buttons/Button.tsx';
-import InteractButton from './components/buttons/InteractButton.tsx';
-import FreezeButton from './components/FreezeButton.tsx';
 import { MAX_HUMAN_PLAYERS } from '../convex/constants.ts';
 import PoweredByConvex from './components/PoweredByConvex.tsx';
 import { useQuery } from 'convex/react';
@@ -87,17 +76,14 @@ export default function Home() {
                   Ciudad de IA
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm sm:text-lg text-white/80 leading-relaxed">
-                  Un dashboard vivo del settlement: recursos, hogares, agentes, crisis y tensión social,
-                  optimizado primero para móvil.
+                  Panel vivo del settlement: recursos, hogares, agentes, crisis y tensión social,
+                  hecho para verse bien en móvil.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2 pt-2 lg:justify-end">
-                <FreezeButton />
-                <MusicButton />
-                <InteractButton />
-                <Button imgUrl={helpImg} onClick={() => setHelpModalOpen(true)}>
-                  Ayuda
-                </Button>
+              <div className="pt-2 lg:text-right">
+                <div className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-emerald-200">
+                  Dashboard en vivo
+                </div>
               </div>
             </div>
           </div>
@@ -111,24 +97,11 @@ export default function Home() {
           <Game />
         </div>
 
-        <footer className="justify-end bottom-0 left-0 w-full flex items-center mt-2 gap-3 p-6 flex-wrap pointer-events-none">
-          <div className="flex gap-4 flex-grow pointer-events-none">
-            <FreezeButton />
-            <MusicButton />
-            <Button href="https://github.com/a16z-infra/ai-town" imgUrl={starImg}>
-              Star
-            </Button>
-            <InteractButton />
-            <Button imgUrl={helpImg} onClick={() => setHelpModalOpen(true)}>
-              Help
-            </Button>
-          </div>
-          <a href="https://a16z.com">
-            <img className="w-8 h-8 pointer-events-auto" src={a16zImg} alt="a16z" />
-          </a>
-          <a href="https://convex.dev/c/ai-town">
-            <img className="w-20 h-8 pointer-events-auto" src={convexImg} alt="Convex" />
-          </a>
+        <footer className="justify-between bottom-0 left-0 w-full flex items-center mt-2 gap-3 px-6 pb-6 pt-2 flex-wrap text-xs text-white/45">
+          <div>Betelgeuse IA · Settlement Dashboard</div>
+          <button className="pointer-events-auto text-white/60 hover:text-white" onClick={() => setHelpModalOpen(true)}>
+            Ver ayuda
+          </button>
         </footer>
         <ToastContainer position="bottom-right" autoClose={2000} closeOnClick theme="dark" />
       </div>
