@@ -3,6 +3,14 @@ import type { ReactNode } from 'react';
 type Tone = 'red' | 'green' | 'amber' | 'blue' | 'slate';
 
 type DashboardData = {
+  meta?: {
+    lastCycleAt?: number;
+    lastEventAt?: number;
+    dataAgeMs?: number;
+    isStale?: boolean;
+    staleAfterMs?: number;
+    heartbeat?: 'live' | 'stale';
+  } | null;
   settlement: {
     name: string;
     status: string;
@@ -14,6 +22,7 @@ type DashboardData = {
     emergencyMode: boolean;
     criticalAgents: number;
     pendingTasks: number;
+    isStale?: boolean;
   };
   summary: {
     population: number;
@@ -79,8 +88,10 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
 
   const { settlement, alerts, summary } = data;
   const resourceTotal = summary.totalFood + summary.totalWood + summary.totalStone;
-  const liveliness = alerts.emergencyMode ? 'STALE' : 'LIVE';
-  const liveTone: Tone = alerts.emergencyMode ? 'red' : 'green';
+  const liveliness = data.meta?.isStale ? 'STALE' : 'LIVE';
+  const liveTone: Tone = data.meta?.isStale ? 'red' : alerts.emergencyMode ? 'amber' : 'green';
+  const freshnessSeconds = typeof data.meta?.dataAgeMs === 'number' ? Math.max(0, Math.round(data.meta.dataAgeMs / 1000)) : null;
+  const resourcePressure = Math.max(0, Math.min(100, Math.round((summary.totalFood / Math.max(summary.population * 3, 1)) * 100)));
   const moraleRisk = riskBand(100 - summary.avgMorale, [25, 55]);
   const hungerRisk = riskBand(summary.avgHunger, [45, 72]);
   const energyRisk = inverseRiskBand(summary.avgEnergy, [65, 38]);
@@ -114,24 +125,48 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
   return (
     <div className="space-y-4 sm:space-y-5">
       <section className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.18),transparent_34%),radial-gradient(circle_at_top_right,rgba(248,113,113,0.14),transparent_28%),linear-gradient(180deg,rgba(10,14,23,0.98),rgba(6,9,15,0.98))] p-4 shadow-[0_24px_90px_rgba(2,8,23,0.55)] sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.28em] text-cyan-100/75">
-              <Badge tone={liveTone}>{liveliness}</Badge>
-              <Badge tone="slate">tick {settlement.tick}</Badge>
-              <Badge tone={settlement.status === 'active' ? 'green' : 'amber'}>{settlement.status}</Badge>
-            </div>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-5xl">{settlement.name} command center</h2>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-200/72 sm:text-base">
-              Mobile-first operational view for live stability, resource posture and mission throughput.
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.28em] text-cyan-100/75">
+          <Badge tone={liveTone}>{liveliness}</Badge>
+          <Badge tone="slate">tick {settlement.tick}</Badge>
+          <Badge tone={settlement.status === 'active' ? 'green' : 'amber'}>{settlement.status}</Badge>
+          {freshnessSeconds !== null ? <Badge tone={liveTone}>{freshnessSeconds}s fresh</Badge> : null}
+        </div>
 
-          <div className="grid grid-cols-2 gap-3 self-stretch sm:grid-cols-4 lg:min-w-[420px]">
-            <HeroStat label="Population" value={summary.population} detail="active agents" />
-            <HeroStat label="Tasks" value={alerts.pendingTasks} detail={dominantTask ? `${humanizeLabel(dominantTask[0])} leads` : 'queue clear'} />
-            <HeroStat label="Resources" value={resourceTotal} detail="food + wood + stone" />
-            <HeroStat label="Critical" value={alerts.criticalAgents} detail={alerts.criticalAgents ? 'needs response' : 'stable'} tone={alerts.criticalAgents ? 'amber' : 'green'} />
+        <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-4xl">{settlement.name} command center</h2>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-200/72 sm:text-base">
+                Live operational view for stability, resource pressure and crew throughput.
+              </p>
+            </div>
+
+            <div className="w-full lg:max-w-[520px]">
+              <div className={`rounded-[22px] border p-3 ${liveTone === 'red' ? 'border-red-400/40 bg-red-500/18' : liveTone === 'amber' ? 'border-amber-400/35 bg-amber-500/14' : 'border-emerald-400/30 bg-emerald-500/12'}`}>
+                <div className="flex items-center justify-between gap-3 text-xs font-medium uppercase tracking-[0.18em] text-white/78">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${liveTone === 'red' ? 'bg-red-300 shadow-[0_0_12px_rgba(252,165,165,0.8)]' : liveTone === 'amber' ? 'bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.8)]' : 'bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.8)]'}`} />
+                    <span>{liveliness}</span>
+                  </div>
+                  <div>Pop {summary.population}</div>
+                  <div className={alerts.criticalAgents > 0 ? 'text-red-100' : 'text-emerald-100'}>{alerts.criticalAgents ? `${alerts.criticalAgents} crit` : '0 crit'}</div>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-3 text-sm text-white">
+                  <CompactMetric label="Tasks" value={alerts.pendingTasks} />
+                  <CompactMetric label="Resources" value={resourceTotal} />
+                  <CompactMetric label="Morale" value={formatMetric(summary.avgMorale)} />
+                </div>
+                <div className="mt-3">
+                  <div className="mb-1 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-white/58">
+                    <span>Food buffer</span>
+                    <span>{resourcePressure}%</span>
+                  </div>
+                  <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
+                    <div className={`h-full rounded-full ${resourcePressure < 40 ? 'bg-gradient-to-r from-red-400 to-amber-300' : resourcePressure < 75 ? 'bg-gradient-to-r from-amber-300 to-yellow-200' : 'bg-gradient-to-r from-emerald-400 to-cyan-300'}`} style={{ width: `${Math.max(8, Math.min(100, resourcePressure))}%` }} />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -142,7 +177,7 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
             ))}
           </div>
         ) : (
-          <div className="mt-5 rounded-3xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+          <div className="mt-5 rounded-3xl border border-emerald-400/30 bg-emerald-500/16 px-4 py-3 text-sm font-medium text-emerald-50 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.08)]">
             No dominant alerts. Current posture is stable and crews are inside expected thresholds.
           </div>
         )}
@@ -185,6 +220,8 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
           <div className="grid grid-cols-2 gap-3">
             <MetaCard label="Feed state" value={liveliness} tone={liveTone} />
             <MetaCard label="Emergency" value={alerts.emergencyMode ? 'ON' : 'OFF'} tone={alerts.emergencyMode ? 'red' : 'green'} />
+            <MetaCard label="Freshness" value={freshnessSeconds !== null ? `${freshnessSeconds}s` : 'unknown'} tone={liveTone} />
+            <MetaCard label="Heartbeat" value={data.meta?.heartbeat?.toUpperCase?.() ?? liveliness} tone={liveTone} />
             <MetaCard label="Hunger risk" value={hungerRisk.label} tone={hungerRisk.tone} />
             <MetaCard label="Morale risk" value={moraleRisk.label} tone={moraleRisk.tone} />
             <MetaCard label="Energy risk" value={energyRisk.label} tone={energyRisk.tone} />
@@ -367,12 +404,11 @@ function Panel({ children, title, eyebrow }: { children: ReactNode; title?: stri
   );
 }
 
-function HeroStat({ label, value, detail, tone = 'slate' }: { label: string; value: string | number; detail: string; tone?: Tone }) {
+function CompactMetric({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className={`rounded-2xl border p-3 ${toneSurface[tone]}`}>
-      <div className="text-[10px] uppercase tracking-[0.18em] text-white/48">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
-      <div className="mt-1 text-xs text-white/58">{detail}</div>
+    <div className="rounded-2xl border border-white/10 bg-black/15 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-white/50">{label}</div>
+      <div className="mt-1 text-lg font-semibold text-white">{value}</div>
     </div>
   );
 }
@@ -401,10 +437,23 @@ function Badge({ children, tone }: { children: ReactNode; tone: Tone }) {
 }
 
 function DominantAlert({ title, body, tone }: { title: string; body: string; tone: Tone }) {
+  const accent = tone === 'red' ? 'bg-red-400' : tone === 'amber' ? 'bg-amber-300' : tone === 'blue' ? 'bg-cyan-300' : 'bg-emerald-300';
+  const shell = tone === 'red'
+    ? 'border-red-400/45 bg-red-500/22 shadow-[0_0_0_1px_rgba(248,113,113,0.08),0_18px_40px_rgba(127,29,29,0.22)]'
+    : tone === 'amber'
+      ? 'border-amber-300/45 bg-amber-500/18 shadow-[0_0_0_1px_rgba(252,211,77,0.08),0_18px_40px_rgba(120,53,15,0.18)]'
+      : tone === 'blue'
+        ? 'border-cyan-300/35 bg-cyan-500/14 shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_18px_40px_rgba(8,47,73,0.18)]'
+        : toneSurface[tone];
   return (
-    <div className={`rounded-3xl border px-4 py-3 ${toneSurface[tone]}`}>
-      <div className="text-sm font-semibold text-white">{title}</div>
-      <div className="mt-1 text-sm text-white/75">{body}</div>
+    <div className={`rounded-[26px] border p-0 ${shell}`}>
+      <div className="grid grid-cols-[6px_1fr] overflow-hidden rounded-[26px]">
+        <div className={accent} />
+        <div className="px-4 py-3">
+          <div className="text-sm font-semibold text-white">{title}</div>
+          <div className="mt-1 text-sm text-white/82">{body}</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -445,9 +494,9 @@ function EmptyState({ text }: { text: string }) {
 }
 
 const toneSurface: Record<Tone, string> = {
-  red: 'border-red-400/20 bg-red-400/10 text-red-100',
-  green: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100',
-  amber: 'border-amber-400/20 bg-amber-400/10 text-amber-100',
-  blue: 'border-cyan-400/20 bg-cyan-400/10 text-cyan-100',
+  red: 'border-red-400/35 bg-red-500/16 text-red-50',
+  green: 'border-emerald-400/28 bg-emerald-500/12 text-emerald-50',
+  amber: 'border-amber-300/35 bg-amber-500/14 text-amber-50',
+  blue: 'border-cyan-300/28 bg-cyan-500/12 text-cyan-50',
   slate: 'border-white/10 bg-white/[0.04] text-white',
 };
