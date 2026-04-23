@@ -4,7 +4,9 @@ export default function SettlementDashboard({ data }: { data: any }) {
   }
 
   if (!data) {
-    return <SkeletonDashboard message="Sembrando el settlement inicial..." />;
+    return (
+      <SkeletonDashboard message="Sin datos todavía. Si esto no cambia en unos segundos, hay un fallo real de conexión o inicialización." />
+    );
   }
 
   return (
