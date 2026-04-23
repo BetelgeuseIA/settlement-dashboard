@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { ToastContainer } from 'react-toastify';
 import SettlementDashboard from './components/dashboard/SettlementDashboard';
@@ -7,9 +7,15 @@ import { api } from '../convex/_generated/api';
 export default function Home() {
   const ensureReady = useMutation((api as any).dashboardPublic.ensureReady);
   const data = useQuery((api as any).dashboardPublic.getDashboard) as any;
+  const seededRef = useRef(false);
 
   useEffect(() => {
-    ensureReady({}).catch(() => undefined);
+    if (seededRef.current) return;
+    seededRef.current = true;
+    ensureReady({}).catch((error) => {
+      console.error('ensureReady failed', error);
+      seededRef.current = false;
+    });
   }, [ensureReady]);
 
   return (
