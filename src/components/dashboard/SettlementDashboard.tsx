@@ -12,6 +12,8 @@ type DashboardData = {
     heartbeat?: 'live' | 'stale';
   } | null;
   settlement: {
+    id?: string;
+    worldId?: string;
     name: string;
     status: string;
     tick: number;
@@ -91,7 +93,7 @@ type DashboardData = {
   }>;
 };
 
-export default function SettlementDashboard({ data }: { data: DashboardData | null | undefined }) {
+export default function SettlementDashboard({ data, controls }: { data: DashboardData | null | undefined; controls?: { onRefresh?: () => void | Promise<void>; onRunCycle?: () => void | Promise<void>; busyAction?: string | null } }) {
   if (data === undefined) {
     return <SkeletonDashboard />;
   }
@@ -186,6 +188,15 @@ export default function SettlementDashboard({ data }: { data: DashboardData | nu
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <ActionButton onClick={controls?.onRefresh} busy={controls?.busyAction === 'refresh'}>
+            ↺ Refresh
+          </ActionButton>
+          <ActionButton onClick={controls?.onRunCycle} busy={controls?.busyAction === 'cycle'} tone="primary">
+            ▶ Run cycle
+          </ActionButton>
         </div>
 
         {operationalAlerts.length > 0 ? (
@@ -510,6 +521,22 @@ function EntityCard({ title, subtitle, pills, emphasis }: { title: string; subti
 
 function EmptyState({ text }: { text: string }) {
   return <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/60">{text}</div>;
+}
+
+function ActionButton({ children, onClick, busy, tone = 'default' }: { children: ReactNode; onClick?: () => void | Promise<void>; busy?: boolean; tone?: 'default' | 'primary' }) {
+  const shell = tone === 'primary'
+    ? 'border-cyan-300/35 bg-cyan-400/15 text-cyan-50'
+    : 'border-white/10 bg-white/[0.04] text-white';
+  return (
+    <button
+      type="button"
+      onClick={() => onClick?.()}
+      disabled={!onClick || busy}
+      className={`rounded-full border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${shell}`}
+    >
+      {busy ? 'Working…' : children}
+    </button>
+  );
 }
 
 const toneSurface: Record<Tone, string> = {

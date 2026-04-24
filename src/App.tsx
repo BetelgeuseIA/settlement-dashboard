@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery } from 'convex/react';
+import { useConvex, useMutation, useQuery } from 'convex/react';
 import { ToastContainer } from 'react-toastify';
 import SettlementDashboard from './components/dashboard/SettlementDashboard';
 import { api } from '../convex/_generated/api';
 
 export default function Home() {
+  const convex = useConvex();
   const ensureReady = useMutation((api as any).settlement.ensure.ensureDashboardReady);
+  const runCycle = useMutation((api as any).settlement.runCycle.runSettlementCycle);
   const data = useQuery((api as any).dashboardPublic.getDashboard) as any;
   const seededRef = useRef(false);
   const [ensureError, setEnsureError] = useState<string | null>(null);
+  const [actionState, setActionState] = useState<string | null>(null);
 
   useEffect(() => {
     if (seededRef.current) return;
@@ -19,6 +22,28 @@ export default function Home() {
       seededRef.current = false;
     });
   }, [ensureReady]);
+
+  async function handleRefresh() {
+    setActionState('refresh');
+    try {
+      await convex.query((api as any).dashboardPublic.getDashboard, {});
+    } finally {
+      setActionState(null);
+    }
+  }
+
+  async function handleRunCycle() {
+    if (!data?.settlement?.worldId) return;
+    setActionState('cycle');
+    try {
+      await runCycle({ worldId: data.settlement.worldId });
+      await convex.query((api as any).dashboardPublic.getDashboard, {});
+    } catch (error: any) {
+      setEnsureError(error?.message ?? 'No se pudo correr el ciclo');
+    } finally {
+      setActionState(null);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_26%),linear-gradient(180deg,#04060b_0%,#07111c_50%,#04060b_100%)] text-white">
@@ -47,7 +72,14 @@ export default function Home() {
         ) : null}
 
         <div className="mt-5">
-          <SettlementDashboard data={data} />
+          <SettlementDashboard
+            data={data}
+            controls={{
+              onRefresh: handleRefresh,
+              onRunCycle: handleRunCycle,
+              busyAction: actionState,
+            }}
+          />
         </div>
       </div>
       <ToastContainer position="bottom-right" autoClose={2000} closeOnClick theme="dark" />

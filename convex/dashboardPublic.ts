@@ -76,6 +76,7 @@ export const getDashboard = query({
       meta: audit?.meta ?? null,
       settlement: {
         id: settlement._id,
+        worldId: worldStatus.worldId,
         name: settlement.name,
         status: settlement.status,
         tick: settlement.tick,
