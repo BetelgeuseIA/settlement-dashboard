@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useConvex, useMutation, useQuery } from 'convex/react';
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
 import SettlementDashboard from './components/dashboard/SettlementDashboard';
 import { api } from '../convex/_generated/api';
 
@@ -12,6 +12,7 @@ export default function Home() {
   const seededRef = useRef(false);
   const [ensureError, setEnsureError] = useState<string | null>(null);
   const [actionState, setActionState] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (seededRef.current) return;
@@ -27,6 +28,8 @@ export default function Home() {
     setActionState('refresh');
     try {
       await convex.query((api as any).dashboardPublic.getDashboard, {});
+      setActionMessage('Panel refrescado.');
+      toast.success('Panel refrescado');
     } finally {
       setActionState(null);
     }
@@ -36,10 +39,15 @@ export default function Home() {
     if (!data?.settlement?.worldId) return;
     setActionState('cycle');
     try {
-      await runCycle({ worldId: data.settlement.worldId });
+      const result = await runCycle({ worldId: data.settlement.worldId });
       await convex.query((api as any).dashboardPublic.getDashboard, {});
+      const message = `Ciclo ejecutado: tick ${result?.tick ?? '?'} · ${result?.resolved ?? 0} tareas resueltas`;
+      setActionMessage(message);
+      toast.success(message);
     } catch (error: any) {
-      setEnsureError(error?.message ?? 'No se pudo correr el ciclo');
+      const message = error?.message ?? 'No se pudo correr el ciclo';
+      setEnsureError(message);
+      toast.error(message);
     } finally {
       setActionState(null);
     }
@@ -68,6 +76,12 @@ export default function Home() {
         {ensureError ? (
           <div className="mt-5 rounded-3xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100">
             Error inicializando datos: {ensureError}
+          </div>
+        ) : null}
+
+        {actionMessage ? (
+          <div className="mt-5 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+            {actionMessage}
           </div>
         ) : null}
 
